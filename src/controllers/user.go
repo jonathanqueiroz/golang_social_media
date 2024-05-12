@@ -2,8 +2,11 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"project01/src/auth"
 	"project01/src/db"
 	"project01/src/models"
 	"project01/src/repositories"
@@ -126,6 +129,18 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userIDFromToken, err := auth.ExtractUserID(r)
+	if err != nil {
+		response.ERROR(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	if userIDFromToken != parsedUserID {
+		fmt.Println(userIDFromToken, parsedUserID)
+		response.ERROR(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
 	db, err := db.New()
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
@@ -158,6 +173,17 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	parsedUserID, err := strconv.ParseUint(userID, 10, 64)
 	if err != nil {
 		response.ERROR(w, http.StatusBadRequest, err)
+		return
+	}
+
+	userIDFromToken, err := auth.ExtractUserID(r)
+	if err != nil {
+		response.ERROR(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	if userIDFromToken != parsedUserID {
+		response.ERROR(w, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
 

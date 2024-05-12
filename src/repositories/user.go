@@ -116,3 +116,15 @@ func (r *UserRepository) FindByName(name string) (*models.User, error) {
 
 	return &user, nil
 }
+
+func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
+	query := `SELECT id, password FROM users WHERE email = $1`
+	rows := r.DB.QueryRow(query, email)
+
+	var user models.User
+	if err := rows.Scan(&user.ID, &user.Password); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

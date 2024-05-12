@@ -11,8 +11,6 @@ import (
 )
 
 func New() (*sql.DB, error) {
-	config.Load()
-
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		config.Host, config.Port, config.Username, config.Password, config.DBName)
 
