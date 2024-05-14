@@ -13,6 +13,9 @@ type User struct {
 	ID        uint64    `json:"id,omitempty"`
 	Name      string    `json:"name,omitempty"`
 	Email     string    `json:"email,omitempty"`
+	Username  string    `json:"username,omitempty"`
+	AvatarURL string    `json:"avatar_url,omitempty"`
+	Bio       string    `json:"bio,omitempty"`
 	Birthdate string    `json:"birthdate,omitempty"`
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	Password  string    `json:"password,omitempty"`
@@ -41,6 +44,10 @@ func (user *User) validate(method string) error {
 		return errors.New("email is required")
 	}
 
+	if user.Username == "" {
+		return errors.New("username is required")
+	}
+
 	if err := checkmail.ValidateFormat(user.Email); err != nil {
 		return errors.New("invalid email format")
 	}
@@ -49,7 +56,7 @@ func (user *User) validate(method string) error {
 		return errors.New("birthdate is required")
 	}
 
-	_, err := time.Parse("01-02-2006", user.Birthdate)
+	_, err := time.Parse("02-01-2006", user.Birthdate)
 	if err != nil {
 		return errors.New("invalid birthdate format, use DD-MM-YYYY")
 	}
@@ -64,6 +71,9 @@ func (user *User) validate(method string) error {
 func (user *User) format(method string) error {
 	user.Name = strings.TrimSpace(user.Name)
 	user.Email = strings.TrimSpace(user.Email)
+	user.Username = strings.TrimSpace(user.Username)
+	user.AvatarURL = strings.TrimSpace(user.AvatarURL)
+	user.Bio = strings.TrimSpace(user.Bio)
 	user.Birthdate = strings.TrimSpace(user.Birthdate)
 
 	if method == "create" {

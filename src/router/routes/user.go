@@ -15,13 +15,7 @@ var userRoutes = []Route{
 	{
 		URI:          "/users",
 		Method:       http.MethodGet,
-		Function:     controllers.AllUsers,
-		AuthRequired: true,
-	},
-	{
-		URI:          "/users/find-by-name",
-		Method:       http.MethodGet,
-		Function:     controllers.FindUserByName,
+		Function:     controllers.FindByFilters,
 		AuthRequired: true,
 	},
 	{
@@ -40,6 +34,30 @@ var userRoutes = []Route{
 		URI:          "/users/{id}",
 		Method:       http.MethodDelete,
 		Function:     controllers.DeleteUser,
+		AuthRequired: true,
+	},
+	{
+		URI:          "/users/{id}/follow",
+		Method:       http.MethodPost,
+		Function:     controllers.FollowUser,
+		AuthRequired: true,
+	},
+	{
+		URI:          "/users/{id}/unfollow",
+		Method:       http.MethodPost,
+		Function:     controllers.UnfollowUser,
+		AuthRequired: true,
+	},
+	{
+		URI:          "/users/{id}/followers",
+		Method:       http.MethodGet,
+		Function:     controllers.UserFollowers,
+		AuthRequired: true,
+	},
+	{
+		URI:          "/users/{id}/following",
+		Method:       http.MethodGet,
+		Function:     controllers.UserFollowing,
 		AuthRequired: true,
 	},
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"project01/src/models"
+	"strings"
 )
 
 type UserRepository struct {
@@ -27,7 +28,7 @@ func (r *UserRepository) Create(user *models.User) (*models.User, error) {
 }
 
 func (r *UserRepository) FindAll() ([]models.User, error) {
-	query := `SELECT id, name, email, birthdate, created_at FROM users`
+	query := `SELECT id, name, email, username, avatar_url, bio, birthdate, created_at FROM users ORDER BY name ASC`
 	rows, err := r.DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -38,7 +39,16 @@ func (r *UserRepository) FindAll() ([]models.User, error) {
 
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Birthdate, &user.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&user.ID,
+			&user.Name,
+			&user.Email,
+			&user.Username,
+			&user.AvatarURL,
+			&user.Bio,
+			&user.Birthdate,
+			&user.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 
@@ -49,11 +59,20 @@ func (r *UserRepository) FindAll() ([]models.User, error) {
 }
 
 func (r *UserRepository) FindByID(id uint64) (*models.User, error) {
-	query := `SELECT id, name, email, birthdate, created_at FROM users WHERE id = $1`
+	query := `SELECT id, name, email, username, avatar_url, bio, birthdate, created_at FROM users WHERE id = $1`
 	rows := r.DB.QueryRow(query, id)
 
 	var user models.User
-	if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Birthdate, &user.CreatedAt); err != nil {
+	if err := rows.Scan(
+		&user.ID,
+		&user.Name,
+		&user.Email,
+		&user.Username,
+		&user.AvatarURL,
+		&user.Bio,
+		&user.Birthdate,
+		&user.CreatedAt,
+	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -104,17 +123,40 @@ func (r *UserRepository) Delete(id uint64) error {
 	return nil
 }
 
-func (r *UserRepository) FindByName(name string) (*models.User, error) {
-	query := `SELECT id, name, email, birthdate, created_at FROM users WHERE name LIKE $1`
-	name = "%" + name + "%"
-	rows := r.DB.QueryRow(query, name)
+func (r *UserRepository) FindByFilters(term string) ([]models.User, error) {
+	term = strings.ToLower(term)
 
-	var user models.User
-	if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Birthdate, &user.CreatedAt); err != nil {
+	query := `SELECT id, name, email, username, avatar_url, bio, birthdate, created_at
+				FROM users
+        WHERE LOWER(name) LIKE $1 OR LOWER(email) LIKE $1 OR LOWER(username) LIKE $1
+        ORDER BY name ASC`
+	rows, err := r.DB.Query(query, "%"+term+"%")
+	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	return &user, nil
+	var users []models.User
+
+	for rows.Next() {
+		var user models.User
+		if err := rows.Scan(
+			&user.ID,
+			&user.Name,
+			&user.Email,
+			&user.Username,
+			&user.AvatarURL,
+			&user.Bio,
+			&user.Birthdate,
+			&user.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	return users, nil
 }
 
 func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
@@ -127,4 +169,76 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+func (r *UserRepository) Follow(followerID, userID uint64) error {
+	query := `INSERT INTO followers (follower_id, user_id) VALUES ($1, $2) ON CONFLICT (follower_id, user_id) DO NOTHING`
+	_, err := r.DB.Exec(query, followerID, userID)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *UserRepository) Unfollow(followerID, userID uint64) error {
+	query := `DELETE FROM followers WHERE follower_id = $1 AND user_id = $2`
+	_, err := r.DB.Exec(query, followerID, userID)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *UserRepository) Followers(userID uint64) ([]models.User, error) {
+	query := `SELECT users.id, users.name, users.username, users.avatar_url, users.bio
+		FROM followers
+		LEFT JOIN users ON users.id = followers.follower_id
+		WHERE followers.user_id = $1 ORDER BY followers.created_at DESC`
+	rows, err := r.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+
+	for rows.Next() {
+		var user models.User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Username, &user.AvatarURL, &user.Bio); err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+func (r *UserRepository) Following(userID uint64) ([]models.User, error) {
+	query := `SELECT users.id, users.name, users.username, users.avatar_url, users.bio
+		FROM followers
+		LEFT JOIN users ON users.id = followers.user_id
+		WHERE followers.follower_id = $1 ORDER BY followers.created_at DESC`
+	rows, err := r.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+
+	for rows.Next() {
+		var user models.User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Username, &user.AvatarURL, &user.Bio); err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	return users, nil
 }
