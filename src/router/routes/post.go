@@ -13,6 +13,12 @@ var postRoutes = []Route{
 		AuthRequired: true,
 	},
 	{
+		URI:          "/posts",
+		Method:       http.MethodGet,
+		Function:     controllers.PostsFollowedUsers,
+		AuthRequired: true,
+	},
+	{
 		URI:          "/posts/{id}",
 		Method:       http.MethodGet,
 		Function:     controllers.FindPost,
@@ -58,12 +64,6 @@ var postRoutes = []Route{
 		URI:          "/posts/{id}/comments",
 		Method:       http.MethodPost,
 		Function:     controllers.NewComment,
-		AuthRequired: true,
-	},
-	{
-		URI:          "/posts/{id}/comments",
-		Method:       http.MethodDelete,
-		Function:     controllers.DeleteComment,
 		AuthRequired: true,
 	},
 }
