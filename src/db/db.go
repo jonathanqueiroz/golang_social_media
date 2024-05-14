@@ -25,6 +25,5 @@ func New() (*sql.DB, error) {
 		return nil, err
 	}
 
-	fmt.Println("Conexão bem sucedida!")
 	return db, nil
 }
