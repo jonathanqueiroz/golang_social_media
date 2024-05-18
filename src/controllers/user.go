@@ -1,12 +1,12 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"project01/src/auth"
-	"project01/src/db"
 	"project01/src/models"
 	"project01/src/repositories"
 	"project01/src/response"
@@ -15,8 +15,22 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type UserController struct {
+	Repo repositories.UserRepositoryInterface
+}
+
+func NewUserController(db *sql.DB) *UserController {
+	return &UserController{
+		Repo: repositories.NewUserRepository(db),
+	}
+}
+
+func (uc *UserController) GetRepo() *repositories.UserRepository {
+	return uc.Repo.(*repositories.UserRepository)
+}
+
 // NewUser creates a new user
-func NewUser(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) NewUser(w http.ResponseWriter, r *http.Request) {
 	responseBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		response.ERROR(w, http.StatusUnprocessableEntity, err)
@@ -36,16 +50,7 @@ func NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	userID, err := userRepo.Create(&user)
+	userID, err := uc.Repo.Create(&user)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -55,17 +60,8 @@ func NewUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // AllUsers returns all users
-func AllUsers(w http.ResponseWriter, r *http.Request) {
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	users, err := userRepo.FindAll()
+func (uc *UserController) AllUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := uc.Repo.FindAll()
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -75,7 +71,7 @@ func AllUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // FindUser returns a user
-func FindUser(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) FindUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userID := vars["id"]
 
@@ -85,16 +81,7 @@ func FindUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	user, err := userRepo.FindByID(parsedUserID)
+	user, err := uc.Repo.FindByID(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -109,7 +96,7 @@ func FindUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateUser updates a user
-func UpdateUser(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	responseBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		response.ERROR(w, http.StatusUnprocessableEntity, err)
@@ -143,18 +130,9 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
 	user.ID = parsedUserID
 
-	err = userRepo.Update(&user)
+	err = uc.Repo.Update(&user)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -169,7 +147,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteUser deletes a user
-func DeleteUser(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userID := vars["id"]
 
@@ -190,16 +168,7 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	err = userRepo.Delete(parsedUserID)
+	err = uc.Repo.Delete(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -214,7 +183,7 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // FindByFilters returns a list of users filtered by filters
-func FindByFilters(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) FindByFilters(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 	term := params.Get("term")
 
@@ -223,16 +192,7 @@ func FindByFilters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	users, err := userRepo.FindByFilters(term)
+	users, err := uc.Repo.FindByFilters(term)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -247,7 +207,7 @@ func FindByFilters(w http.ResponseWriter, r *http.Request) {
 }
 
 // FollowUser follows a user
-func FollowUser(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) FollowUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userID := vars["id"]
 
@@ -268,15 +228,7 @@ func FollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-	user, err := userRepo.FindByID(parsedUserID)
+	user, err := uc.Repo.FindByID(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -287,7 +239,7 @@ func FollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = userRepo.Follow(userIDFromToken, user.ID)
+	err = uc.Repo.Follow(userIDFromToken, user.ID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -297,7 +249,7 @@ func FollowUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // UnfollowUser unfollows a user
-func UnfollowUser(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) UnfollowUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userID := vars["id"]
 
@@ -318,15 +270,7 @@ func UnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-	user, err := userRepo.FindByID(parsedUserID)
+	user, err := uc.Repo.FindByID(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -337,7 +281,7 @@ func UnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = userRepo.Unfollow(userIDFromToken, user.ID)
+	err = uc.Repo.Unfollow(userIDFromToken, user.ID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -347,7 +291,7 @@ func UnfollowUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // UserFollowers returns a list of followers from a user
-func UserFollowers(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) UserFollowers(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userID := vars["id"]
 
@@ -357,16 +301,7 @@ func UserFollowers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	users, err := userRepo.Followers(parsedUserID)
+	users, err := uc.Repo.Followers(parsedUserID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -381,7 +316,7 @@ func UserFollowers(w http.ResponseWriter, r *http.Request) {
 }
 
 // UserFollowing returns a list of users that a user is following
-func UserFollowing(w http.ResponseWriter, r *http.Request) {
+func (uc *UserController) UserFollowing(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userID := vars["id"]
 
@@ -391,16 +326,7 @@ func UserFollowing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := db.New()
-	if err != nil {
-		response.ERROR(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer db.Close()
-
-	userRepo := repositories.UserRepository{DB: db}
-
-	users, err := userRepo.Following(parsedUserID)
+	users, err := uc.Repo.Following(parsedUserID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return

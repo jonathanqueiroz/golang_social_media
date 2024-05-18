@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"database/sql"
 	"net/http"
 	"project01/src/middlewares"
 
@@ -14,10 +15,11 @@ type Route struct {
 	AuthRequired bool
 }
 
-func Load(r *mux.Router) *mux.Router {
-	routes := userRoutes
+func Load(r *mux.Router, db *sql.DB) *mux.Router {
+	routes := userRoutes(db)
 	routes = append(routes, loginRoutes...)
-	routes = append(routes, postRoutes...)
+	routes = append(routes, postRoutes(db)...)
+	routes = append(routes, profileRoutes(db)...)
 
 	for _, route := range routes {
 		if route.AuthRequired {

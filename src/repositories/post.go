@@ -5,10 +5,27 @@ import (
 	"project01/src/models"
 )
 
+type PostRepositoryInterface interface {
+	Create(post *models.Post) (*models.Post, error)
+	FindByAuthorID(authorID uint64, currentUserID uint64) ([]models.Post, error)
+	FindByID(id uint64, currentUserID uint64) (*models.Post, error)
+	Update(post *models.Post) error
+	Delete(id uint64) error
+	LikePost(postID, userID uint64) error
+	UnlikePost(postID, userID uint64) error
+	LikesPost(postID uint64) ([]models.User, error)
+	PostsFollowedUsers(userID uint64) ([]models.Post, error)
+}
+
+func NewPostRepository(db *sql.DB) PostRepositoryInterface {
+	return &PostRepository{DB: db}
+}
+
 type PostRepository struct {
 	DB *sql.DB
 }
 
+// Create creates a new post in the database.
 func (r *PostRepository) Create(post *models.Post) (*models.Post, error) {
 	query := `INSERT INTO posts (content, author_id, parent_id) VALUES ($1, $2, $3) RETURNING id`
 
@@ -26,6 +43,7 @@ func (r *PostRepository) Create(post *models.Post) (*models.Post, error) {
 	return r.FindByID(id, post.AuthorID)
 }
 
+// FindByAuthorID retrieves posts by the author's ID from the database.
 func (r *PostRepository) FindByAuthorID(authorID uint64, currentUserID uint64) ([]models.Post, error) {
 	var posts []models.Post
 
@@ -70,6 +88,7 @@ func (r *PostRepository) FindByAuthorID(authorID uint64, currentUserID uint64) (
 	return posts, nil
 }
 
+// FindByID retrieves a post by its ID from the database.
 func (r *PostRepository) FindByID(id uint64, currentUserID uint64) (*models.Post, error) {
 	var post models.Post
 
@@ -108,6 +127,7 @@ func (r *PostRepository) FindByID(id uint64, currentUserID uint64) (*models.Post
 	return &post, nil
 }
 
+// Update updates the content of a post in the database.
 func (r *PostRepository) Update(post *models.Post) error {
 	query := `UPDATE posts SET content = $1 WHERE id = $2`
 	result, err := r.DB.Exec(query, post.Content, post.ID)
@@ -128,6 +148,7 @@ func (r *PostRepository) Update(post *models.Post) error {
 	return nil
 }
 
+// Delete deletes a post from the database.
 func (r *PostRepository) Delete(id uint64) error {
 	query := `DELETE FROM posts WHERE id = $1`
 	result, err := r.DB.Exec(query, id)
@@ -148,6 +169,7 @@ func (r *PostRepository) Delete(id uint64) error {
 	return nil
 }
 
+// LikePost adds a like to a post in the database.
 func (r *PostRepository) LikePost(postID, userID uint64) error {
 	query := `INSERT INTO likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT (post_id, user_id) DO NOTHING`
 	_, err := r.DB.Exec(query, postID, userID)
@@ -158,6 +180,7 @@ func (r *PostRepository) LikePost(postID, userID uint64) error {
 	return nil
 }
 
+// UnlikePost removes a like from a post in the database.
 func (r *PostRepository) UnlikePost(postID, userID uint64) error {
 	query := `DELETE FROM likes WHERE post_id = $1 AND user_id = $2`
 	_, err := r.DB.Exec(query, postID, userID)
@@ -168,6 +191,7 @@ func (r *PostRepository) UnlikePost(postID, userID uint64) error {
 	return nil
 }
 
+// LikesPost retrieves the users who liked a post from the database.
 func (r *PostRepository) LikesPost(postID uint64) ([]models.User, error) {
 	var users []models.User
 
@@ -193,6 +217,7 @@ func (r *PostRepository) LikesPost(postID uint64) ([]models.User, error) {
 	return users, nil
 }
 
+// PostsFollowedUsers retrieves posts from the users that the current user is following.
 func (r *PostRepository) PostsFollowedUsers(userID uint64) ([]models.Post, error) {
 	var posts []models.Post
 
@@ -237,6 +262,7 @@ func (r *PostRepository) PostsFollowedUsers(userID uint64) ([]models.Post, error
 	return posts, nil
 }
 
+// findRepliesByParentID retrieves the replies to a post from the database.
 func (r *PostRepository) findRepliesByParentID(parentID uint64, currentUserID uint64) ([]models.Post, error) {
 	var posts []models.Post
 

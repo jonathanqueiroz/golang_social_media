@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+type UserRepositoryInterface interface {
+	Create(user *models.User) (*models.User, error)
+	FindAll() ([]models.User, error)
+	FindByID(id uint64) (*models.User, error)
+	Update(user *models.User) error
+	Delete(id uint64) error
+	FindByFilters(term string) ([]models.User, error)
+	FindByEmail(email string) (*models.User, error)
+	Follow(followerID, userID uint64) error
+	Unfollow(followerID, userID uint64) error
+	Followers(userID uint64) ([]models.User, error)
+	Following(userID uint64) ([]models.User, error)
+}
+
+func NewUserRepository(db *sql.DB) UserRepositoryInterface {
+	return &UserRepository{DB: db}
+}
+
 type UserRepository struct {
 	DB *sql.DB
 }
