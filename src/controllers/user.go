@@ -5,28 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"project01/src/auth"
 	"project01/src/models"
 	"project01/src/repositories"
 	"project01/src/response"
+	"project01/src/websocket"
 	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
 type UserController struct {
-	Repo repositories.UserRepositoryInterface
+	UserRepo         repositories.UserRepositoryInterface
+	NotificationRepo repositories.NotificationRepositoryInterface
 }
 
 func NewUserController(db *sql.DB) *UserController {
 	return &UserController{
-		Repo: repositories.NewUserRepository(db),
+		UserRepo:         repositories.NewUserRepository(db),
+		NotificationRepo: repositories.NewNotificationRepository(db),
 	}
-}
-
-func (uc *UserController) GetRepo() *repositories.UserRepository {
-	return uc.Repo.(*repositories.UserRepository)
 }
 
 // NewUser creates a new user
@@ -50,7 +50,7 @@ func (uc *UserController) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := uc.Repo.Create(&user)
+	userID, err := uc.UserRepo.Create(&user)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -61,7 +61,7 @@ func (uc *UserController) NewUser(w http.ResponseWriter, r *http.Request) {
 
 // AllUsers returns all users
 func (uc *UserController) AllUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := uc.Repo.FindAll()
+	users, err := uc.UserRepo.FindAll()
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -81,7 +81,7 @@ func (uc *UserController) FindUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := uc.Repo.FindByID(parsedUserID)
+	user, err := uc.UserRepo.FindByID(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -132,7 +132,7 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	user.ID = parsedUserID
 
-	err = uc.Repo.Update(&user)
+	err = uc.UserRepo.Update(&user)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -168,7 +168,7 @@ func (uc *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = uc.Repo.Delete(parsedUserID)
+	err = uc.UserRepo.Delete(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -192,7 +192,7 @@ func (uc *UserController) FindByFilters(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	users, err := uc.Repo.FindByFilters(term)
+	users, err := uc.UserRepo.FindByFilters(term)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -228,7 +228,7 @@ func (uc *UserController) FollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := uc.Repo.FindByID(parsedUserID)
+	user, err := uc.UserRepo.FindByID(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -239,10 +239,25 @@ func (uc *UserController) FollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = uc.Repo.Follow(userIDFromToken, user.ID)
+	newFollowerInserted, err := uc.UserRepo.Follow(userIDFromToken, user.ID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
+	}
+
+	if newFollowerInserted {
+		notification := models.Notification{
+			UserID:       user.ID,
+			Type:         "new_follower",
+			SourceUserID: userIDFromToken,
+		}
+
+		err = uc.NotificationRepo.CreateOrUpdate(notification)
+		if err != nil {
+			log.Println(err)
+		}
+
+		websocket.SendNotification(user.ID, notification)
 	}
 
 	response.JSON(w, http.StatusNoContent, nil)
@@ -270,7 +285,7 @@ func (uc *UserController) UnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := uc.Repo.FindByID(parsedUserID)
+	user, err := uc.UserRepo.FindByID(parsedUserID)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -281,7 +296,7 @@ func (uc *UserController) UnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = uc.Repo.Unfollow(userIDFromToken, user.ID)
+	err = uc.UserRepo.Unfollow(userIDFromToken, user.ID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -301,7 +316,7 @@ func (uc *UserController) UserFollowers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	users, err := uc.Repo.Followers(parsedUserID)
+	users, err := uc.UserRepo.Followers(parsedUserID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -326,7 +341,7 @@ func (uc *UserController) UserFollowing(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	users, err := uc.Repo.Following(parsedUserID)
+	users, err := uc.UserRepo.Following(parsedUserID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return

@@ -20,6 +20,7 @@ func Load(r *mux.Router, db *sql.DB) *mux.Router {
 	routes = append(routes, loginRoutes...)
 	routes = append(routes, postRoutes(db)...)
 	routes = append(routes, profileRoutes(db)...)
+	routes = append(routes, notificationRoutes(db)...)
 
 	for _, route := range routes {
 		if route.AuthRequired {

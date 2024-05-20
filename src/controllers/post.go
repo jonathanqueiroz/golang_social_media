@@ -5,28 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"project01/src/auth"
 	"project01/src/models"
 	"project01/src/repositories"
 	"project01/src/response"
+	"project01/src/websocket"
 	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
 type PostController struct {
-	Repo repositories.PostRepositoryInterface
+	PostRepo         repositories.PostRepositoryInterface
+	NotificationRepo repositories.NotificationRepositoryInterface
 }
 
 func NewPostController(db *sql.DB) *PostController {
 	return &PostController{
-		Repo: repositories.NewPostRepository(db),
+		PostRepo:         repositories.NewPostRepository(db),
+		NotificationRepo: repositories.NewNotificationRepository(db),
 	}
-}
-
-func (pc *PostController) GetRepo() *repositories.PostRepository {
-	return pc.Repo.(*repositories.PostRepository)
 }
 
 // NewPost creates a new post
@@ -72,7 +72,7 @@ func (pc *PostController) NewPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdPost, err := pc.Repo.Create(&post)
+	createdPost, err := pc.PostRepo.Create(&post)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -89,7 +89,7 @@ func (pc *PostController) PostsFollowedUsers(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	posts, err := pc.Repo.PostsFollowedUsers(userIDFromToken)
+	posts, err := pc.PostRepo.PostsFollowedUsers(userIDFromToken)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -120,7 +120,7 @@ func (pc *PostController) FindPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := pc.Repo.FindByID(parsedPostID, userIDFromToken)
+	post, err := pc.PostRepo.FindByID(parsedPostID, userIDFromToken)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -164,7 +164,7 @@ func (pc *PostController) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := pc.Repo.FindByID(parsedPostID, userIDFromToken)
+	post, err := pc.PostRepo.FindByID(parsedPostID, userIDFromToken)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -183,7 +183,7 @@ func (pc *PostController) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	post.Content = updatedPost.Content
 
 	post.Prepare()
-	err = pc.Repo.Update(post)
+	err = pc.PostRepo.Update(post)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -209,7 +209,7 @@ func (pc *PostController) DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := pc.Repo.FindByID(parsedPostID, userIDFromToken)
+	post, err := pc.PostRepo.FindByID(parsedPostID, userIDFromToken)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -225,7 +225,7 @@ func (pc *PostController) DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = pc.Repo.Delete(post.ID)
+	err = pc.PostRepo.Delete(post.ID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -251,7 +251,7 @@ func (pc *PostController) UserPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := pc.Repo.FindByAuthorID(parsedUserID, userIDFromToken)
+	posts, err := pc.PostRepo.FindByAuthorID(parsedUserID, userIDFromToken)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -287,7 +287,7 @@ func (pc *PostController) LikePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := pc.Repo.FindByID(parsedPostID, userIDFromToken)
+	post, err := pc.PostRepo.FindByID(parsedPostID, userIDFromToken)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -298,10 +298,26 @@ func (pc *PostController) LikePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = pc.Repo.LikePost(post.ID, userIDFromToken)
+	newLikeInserted, err := pc.PostRepo.LikePost(post.ID, userIDFromToken)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
+	}
+
+	if newLikeInserted && post.AuthorID != userIDFromToken {
+		notification := models.Notification{
+			UserID:       post.AuthorID,
+			Type:         "like",
+			SourceUserID: userIDFromToken,
+			SourcePostID: &post.ID,
+		}
+
+		err = pc.NotificationRepo.CreateOrUpdate(notification)
+		if err != nil {
+			log.Println(err)
+		}
+
+		websocket.SendNotification(post.AuthorID, notification)
 	}
 
 	response.JSON(w, http.StatusNoContent, nil)
@@ -324,7 +340,7 @@ func (pc *PostController) UnlikePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := pc.Repo.FindByID(parsedPostID, userIDFromToken)
+	post, err := pc.PostRepo.FindByID(parsedPostID, userIDFromToken)
 	if err != nil {
 		if err == repositories.ErrNotFound {
 			response.ERROR(w, http.StatusNotFound, err)
@@ -335,7 +351,7 @@ func (pc *PostController) UnlikePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = pc.Repo.UnlikePost(post.ID, userIDFromToken)
+	err = pc.PostRepo.UnlikePost(post.ID, userIDFromToken)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return
@@ -355,7 +371,7 @@ func (pc *PostController) LikesPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	likes, err := pc.Repo.LikesPost(parsedPostID)
+	likes, err := pc.PostRepo.LikesPost(parsedPostID)
 	if err != nil {
 		response.ERROR(w, http.StatusInternalServerError, err)
 		return

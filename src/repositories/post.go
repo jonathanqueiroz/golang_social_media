@@ -11,7 +11,7 @@ type PostRepositoryInterface interface {
 	FindByID(id uint64, currentUserID uint64) (*models.Post, error)
 	Update(post *models.Post) error
 	Delete(id uint64) error
-	LikePost(postID, userID uint64) error
+	LikePost(postID, userID uint64) (bool, error)
 	UnlikePost(postID, userID uint64) error
 	LikesPost(postID uint64) ([]models.User, error)
 	PostsFollowedUsers(userID uint64) ([]models.Post, error)
@@ -170,14 +170,20 @@ func (r *PostRepository) Delete(id uint64) error {
 }
 
 // LikePost adds a like to a post in the database.
-func (r *PostRepository) LikePost(postID, userID uint64) error {
-	query := `INSERT INTO likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT (post_id, user_id) DO NOTHING`
-	_, err := r.DB.Exec(query, postID, userID)
+func (r *PostRepository) LikePost(postID, userID uint64) (bool, error) {
+	query := `INSERT INTO likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT (post_id, user_id) DO NOTHING RETURNING id`
+	var id uint64
+
+	err := r.DB.QueryRow(query, postID, userID).Scan(&id)
 	if err != nil {
-		return err
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 // UnlikePost removes a like from a post in the database.

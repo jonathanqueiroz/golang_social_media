@@ -15,7 +15,7 @@ type UserRepositoryInterface interface {
 	Delete(id uint64) error
 	FindByFilters(term string) ([]models.User, error)
 	FindByEmail(email string) (*models.User, error)
-	Follow(followerID, userID uint64) error
+	Follow(followerID, userID uint64) (bool, error)
 	Unfollow(followerID, userID uint64) error
 	Followers(userID uint64) ([]models.User, error)
 	Following(userID uint64) ([]models.User, error)
@@ -189,15 +189,21 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (r *UserRepository) Follow(followerID, userID uint64) error {
-	query := `INSERT INTO followers (follower_id, user_id) VALUES ($1, $2) ON CONFLICT (follower_id, user_id) DO NOTHING`
-	_, err := r.DB.Exec(query, followerID, userID)
+func (r *UserRepository) Follow(followerID, userID uint64) (bool, error) {
+	query := `INSERT INTO followers (follower_id, user_id) VALUES ($1, $2) ON CONFLICT (follower_id, user_id) DO NOTHING RETURNING id`
 
+	var id uint64
+
+	err := r.DB.QueryRow(query, followerID, userID).Scan(&id)
 	if err != nil {
-		return err
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 func (r *UserRepository) Unfollow(followerID, userID uint64) error {

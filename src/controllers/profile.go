@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"database/sql"
 	"net/http"
 	"project01/src/auth"
 	"project01/src/models"
@@ -9,14 +10,14 @@ import (
 )
 
 type ProfileController struct {
-	UserRepo *repositories.UserRepository
-	PostRepo *repositories.PostRepository
+	UserRepo repositories.UserRepositoryInterface
+	PostRepo repositories.PostRepositoryInterface
 }
 
-func NewProfileController(userRepo *repositories.UserRepository, postRepo *repositories.PostRepository) *ProfileController {
+func NewProfileController(db *sql.DB) *ProfileController {
 	return &ProfileController{
-		UserRepo: userRepo,
-		PostRepo: postRepo,
+		UserRepo: repositories.NewUserRepository(db),
+		PostRepo: repositories.NewPostRepository(db),
 	}
 }
 

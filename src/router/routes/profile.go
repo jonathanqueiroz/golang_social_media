@@ -7,9 +7,7 @@ import (
 )
 
 func profileRoutes(db *sql.DB) []Route {
-	postController := controllers.NewPostController(db)
-	userController := controllers.NewUserController(db)
-	profileController := controllers.NewProfileController(userController.GetRepo(), postController.GetRepo())
+	profileController := controllers.NewProfileController(db)
 
 	return []Route{
 		{
